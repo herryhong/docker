@@ -88,11 +88,8 @@ cat /etc/sysconfig/network-scripts/ifcfg-eth0
 
 配置ovs0网桥时，ovs会自动生成相同名字的网桥端口（port）、和网络接口（interface）：
 
-> #ovs-vsctl show
-
->
-
-> Bridge "ovs0"
+`` #ovs-vsctl show
+Bridge "ovs0" ``
 
 > 
 
