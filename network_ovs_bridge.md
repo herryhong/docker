@@ -22,7 +22,6 @@ bridge还不支持vlan，因此采用当前使用比较多的openVswitch（简�
 -installing-openvswitch-2-3-1-lts/) and [install ovs on centos6.5](https://n40la
 b.wordpress.com/2014/01/11/centos-6-5-openvswitch-1-9-3-lts-installation/)
 
-****
 
 **配置ovs网桥**：
 
