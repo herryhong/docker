@@ -71,6 +71,7 @@ ovs-vsctl set port ovs0 tag=349 -- 交换机为10.77.109.1/24网段标记的vlan
 **配置：**
 
 配置主要包括ovs网桥构建，以及容器网络设置。网桥配置有两种方式，一种通过ovs-vsctl命令来实现，这种有个缺陷，网络重启后设置会部分丢失，另一种是配置文件，好处是能够固化。下面主要采用配置文件方式，详情可参考：$OVS_HOME/rhel/README.RHEL
+
 1）配置eth0：把eth0接入ovs0，同时不配置ip
 ```
 cat /etc/sysconfig/network-scripts/ifcfg-eth0
@@ -84,6 +85,7 @@ BOOTPROTO=none
 HOTPLUG=no
 ```
 2）配置ovs网桥ovs0：
+
 a）当上联交换机的端口配置成混合模式时：
 ```
 cat /etc/sysconfig/network-scripts/ifcfg-ovs0
