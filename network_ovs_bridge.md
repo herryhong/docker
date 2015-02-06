@@ -3,7 +3,7 @@
 docker的火爆程度不用多言，线上环境规模性使用docker过程中，遇到最多问题的，应该非docker网络莫属。docker有四种网络模式：
 - container：复用另一容器的网络
 - host：复用宿主机（host）的网络
-- bridge：可以使用默认的网桥，也可以注入定制的网桥
+- bridge：可以使用默认的网桥（NAT），也可以注入定制的网桥
 - none：docker不初始化任何网络
 
 ![docker_networks](http://git.intra.weibo.com/uploads/platform/docker-service/7e76e60494/docker_networks.png)
