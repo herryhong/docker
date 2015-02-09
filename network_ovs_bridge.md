@@ -60,7 +60,7 @@ host和container 网络都需要走vlan，需要上联交换机的支持。从�
 ```
 很自然的想法，把eth0 ip分配给接口ovs0，此时端口ovs0还是工作在access模式下，只有容器对应的端口工作在trunk（vlan）下，网络拓扑如下：
 
-![Alt text](./1423450841282.png)
+![Alt text](./docker_ovs1.png)
 
 2）上联交换机配置为trunk模式，目前了解到的是，无法给端口ovs0标记vlan tag，所以如果直接把原eth0 ip分配给接口ovs0，会导致网络不通。我还测试过，即使手动的把端口ovs0标记vlan tag：
 ```
@@ -68,7 +68,7 @@ $ ovs-vsctl set port ovs0 tag=349 #交换机为10.77.109.1/24网段标记的vlan
 ```
 网络还是不通。这块我理解自建的ovs端口不支持标记vlan tag（求验证或被挑战）。因此当上联交换机端口工作在trunk模式时，为了保证原eth0 ip可达，ovs0接口也不配置ip，通过新建接口vlan349，把eth0 ip赋予给它，同时对其端口设置vlan tag；此时所有包含ip的端口都工作在trunk模式下，网络拓扑看起来是这样子的：
 
-![Alt text](./1423451251657.png)
+![Alt text](./docker_ovs2.png)
 
 **配置：**
 
