@@ -3,10 +3,10 @@
 docker的火爆程度不用多言，线上环境规模性使用docker过程中，遇到最多问题的，应该非docker网络莫属。docker有四种网络模式：
 - container：复用另一容器的网络
 - host：复用宿主机（host）的网络
-- bridge：可以使用默认的网桥（NAT），也可以注入定制的网桥
+- bridge：可以使用默认的网桥，也可以注入定制的网桥
 - none：docker不初始化任何网络
 
-![docker_networks](http://git.intra.weibo.com/uploads/platform/docker-service/7e76e60494/docker_networks.png)
+![Alt text](./docker_network.png)
 
 | 网络模式 | 优点 | 缺点 |
 | ------------ | ------------- | ------------ |
@@ -50,7 +50,7 @@ host和container 网络都需要走vlan，需要上联交换机的支持。从�
 
 采用ovs bridge构建docker网络，可以有两种拓扑方式：
 
-1）上联交换机配置为混合模式，eth0（物理网卡对应的网络接口）接入ovs网桥ovs0（这儿假设网桥名称为ovs0），容器网络都是通过veth pair来实现的，一头在容器里面，称之为guest接口，一头在host上，称之为本地接口，本地接口也都接入网桥ovs0。当eth0加入网桥ovs0后，分配给它的ip将失效，需要在加入ovs0前，把其ip迁移到其它的网络接口（参考[http://openvswitch.org/support/config-cookbooks/vlan-configuration-cookbook/](http://openvswitch.org/support/config-cookbooks/vlan-configuration-cookbook/)），否则将无法该ip将不可达，所以需要将eth0的ip分配给其它接口，ovs在创建网桥ovs0时，会自动创建相同名字的端口（port），以及相同名字的接口（interface），如下图所示：
+1）上联交换机配置为混合模式，eth0（物理网卡对应的网络接口）接入ovs网桥ovs0（这儿假设网桥名称为ovs0），容器网络都是通过veth pair来实现的，一头在容器里面，称之为guest接口，一头在host上，称之为本地接口，本地接口也都接入网桥ovs0。当eth0加入网桥ovs0后，分配给它的ip将失效，需要在加入ovs0前，把其ip迁移到其它的网络接口（参考[http://openvswitch.org/support/config-cookbooks/vlan-configuration-cookbook/](http://openvswitch.org/support/config-cookbooks/vlan-configuration-cookbook/)），否则该ip将不可达；ovs在创建网桥ovs0时，会自动创建相同名字的端口（port），以及相同名字的接口（interface），如下图所示：
 ```
 	Bridge "ovs0"
         Port "ovs0"
@@ -59,14 +59,16 @@ host和container 网络都需要走vlan，需要上联交换机的支持。从�
     ovs_version: "2.3.1"
 ```
 很自然的想法，把eth0 ip分配给接口ovs0，此时端口ovs0还是工作在access模式下，只有容器对应的端口工作在trunk（vlan）下，网络拓扑如下：
-![Image](http://git.intra.weibo.com/uploads/platform/docker-service/4a5afa9f2f/Image.png)
+
+![Alt text](./1423450841282.png)
 
 2）上联交换机配置为trunk模式，目前了解到的是，无法给端口ovs0标记vlan tag，所以如果直接把原eth0 ip分配给接口ovs0，会导致网络不通。我还测试过，即使手动的把端口ovs0标记vlan tag：
 ```
-ovs-vsctl set port ovs0 tag=349 -- 交换机为10.77.109.1/24网段标记的vlan tag为349
+$ ovs-vsctl set port ovs0 tag=349 #交换机为10.77.109.1/24网段标记的vlan tag为349
 ```
 网络还是不通。这块我理解自建的ovs端口不支持标记vlan tag（求验证或被挑战）。因此当上联交换机端口工作在trunk模式时，为了保证原eth0 ip可达，ovs0接口也不配置ip，通过新建接口vlan349，把eth0 ip赋予给它，同时对其端口设置vlan tag；此时所有包含ip的端口都工作在trunk模式下，网络拓扑看起来是这样子的：
-![Image](http://git.intra.weibo.com/uploads/platform/docker-service/3ae05d51fd/Image.png)
+
+![Alt text](./1423451251657.png)
 
 **配置：**
 
@@ -74,7 +76,7 @@ ovs-vsctl set port ovs0 tag=349 -- 交换机为10.77.109.1/24网段标记的vlan
 
 1）配置eth0：把eth0接入ovs0，同时不配置ip
 ```
-cat /etc/sysconfig/network-scripts/ifcfg-eth0
+$ cat /etc/sysconfig/network-scripts/ifcfg-eth0
 DEVICE=eth0
 ONBOOT=yes
 HWADDR=C8:1F:66:DA:48:11
@@ -88,7 +90,7 @@ HOTPLUG=no
 
 a）当上联交换机的端口配置成混合模式时：
 ```
-cat /etc/sysconfig/network-scripts/ifcfg-ovs0
+$ cat /etc/sysconfig/network-scripts/ifcfg-ovs0
 DEVICE=ovs0
 ONBOOT=yes
 DEVICETYPE=ovs
@@ -102,7 +104,7 @@ HOTPLUG=no
 
 b）当上联交换机的端口配置成trunk模式时：
 ```
-cat /etc/sysconfig/network-scripts/ifcfg-ovs0
+$ cat /etc/sysconfig/network-scripts/ifcfg-ovs0
 DEVICE=ovs0
 ONBOOT=yes
 DEVICETYPE=ovs
@@ -110,9 +112,9 @@ TYPE=OVSBridge
 BOOTPROTO=none
 HOTPLUG=no
 ```
-此时，需要额外的配置vlan349接口：原host ip赋予接口vlan349，同时该接口接入网桥ovs0：
+此时，需要额外配置vlan349接口：原host ip赋予接口vlan349，同时该接口接入网桥ovs0：
 ```
-cat /etc/sysconfig/network-scripts/ifcfg-vlan349
+$ cat /etc/sysconfig/network-scripts/ifcfg-vlan349
 DEVICE=vlan349
 ONBOOT=yes
 DEVICETYPE=ovs
@@ -128,7 +130,7 @@ HOTPLUG=no
 ```
 3）重启网络服务： 
 ```
-service network restart
+$ service network restart
 ```
 4）配置交换机端口为相应的模式，设置vlan tags，使得下放host ip所在网段、以及host上容器所有可能的网段数据包：
 
@@ -158,17 +160,17 @@ end
 ```
 5）验证：能ping通host ip，同时在host上也能ping通网关，至此，ovs网桥结构如下：
 ```
-# ovs-vsctl show
+$ ovs-vsctl show
 Bridge "ovs0"
-Port "vlan349"
-tag: 349
-Interface "vlan349"
-type: internal
-Port "eth0"
-Interface "eth0"
-Port "ovs0"
-Interface "ovs0"
-type: internal
+	Port "vlan349"
+		tag: 349
+		Interface "vlan349"
+			type: internal
+	Port "eth0"
+		Interface "eth0"
+	Port "ovs0"
+		Interface "ovs0"
+		type: internal
 ovs_version: "2.3.1"
 ```
 ## 配置容器网络：
@@ -179,7 +181,7 @@ ovs_version: "2.3.1"
 
 2）启动容器：由于daemon启动时关闭了网络设置，所以此时启动的容器网络都是空的，只有lo：
 ```
-#docker exec -it test3 ifconfig
+$ docker exec -it test3 ifconfig
 lo Link encap:Local Loopback
 inet addr:127.0.0.1 Mask:255.0.0.0
 inet6 addr: ::1/128 Scope:Host
@@ -190,15 +192,18 @@ collisions:0 txqueuelen:0
 RX bytes:0 (0.0 b) TX bytes:0 (0.0 b)
 ```
 3）配置容器网络：
-./pipework ovs0 -i eth0 <container_name or cid> <container_ip>/<subnet>@default_gateway @vlan_id，比如：
 ```
-./pipework ovs0 -i eth0 test310.13.160.10/24@10.13.160.1@860
+pipework ovs0 -i eth0 <container_name or cid> <container_ip>/<subnet>@default_gateway @vlan_id
+```
+比如：
+```
+$ pipework ovs0 -i eth0 test3 10.13.160.10/24@10.13.160.1 @860
 ```
 4）验证：
 ```
-docker exec -it test3 ifconfig -- eth0的ip地址应该为10.13.160.10
-docker exec -it test3 ip route -- eth0的默认网关应该为：default via 10.13.160.1 dev eth0
-ovs-vsctl show
+$ docker exec -it test3 ifconfig #eth0的ip地址应该为10.13.160.10
+$ docker exec -it test3 ip route #eth0的默认网关应该为：default via 10.13.160.1 dev eth0
+$ ovs-vsctl show
     ac95789e-1918-4557-b238-27ded44675a5
     Bridge "ovs0"
         Port "eth0"
@@ -214,7 +219,7 @@ ovs-vsctl show
             tag: 860
             Interface "veth0pl2978"
     ovs_version: "2.3.1"
-docker exec -it test3 ping 10.13.160.10 -- 网络应该都能通
+$ docker exec -it test3 ping 10.13.160.10 #网络应该都能通
 ```
 
 ## 注意事项：
